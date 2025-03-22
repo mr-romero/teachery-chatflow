@@ -4,9 +4,10 @@ import MainLayout from '@/components/layouts/MainLayout';
 import SlideViewer, { SlideContent } from '@/components/ui/SlideViewer';
 import ChatWindow from '@/components/ui/ChatWindow';
 import GoalTracker from '@/components/ui/GoalTracker';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
-// Use the same demo slides and goals as teacher view
+// More realistic demo slides that match the teacher view
 const demoSlides: SlideContent[] = [
   {
     type: 'image',
@@ -17,8 +18,13 @@ const demoSlides: SlideContent[] = [
     content: 'https://images.unsplash.com/photo-1562654306-973b5cfe0c86?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80'
   },
   {
-    type: 'image',
-    content: 'https://images.unsplash.com/photo-1625895197185-efcec01cffe0?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80'
+    type: 'markdown',
+    content: '# Linear Equations\n\nA linear equation is an equation that can be written in the form:\n\n**y = mx + b**\n\nWhere:\n- m is the slope of the line\n- b is the y-intercept',
+    multipleChoice: {
+      question: 'What does the variable m represent in a linear equation?',
+      options: ['The y-intercept', 'The slope', 'The x-coordinate', 'The origin'],
+      correctAnswer: 1
+    }
   },
 ];
 
@@ -33,45 +39,11 @@ const StudentView = () => {
   const [slides, setSlides] = useState(demoSlides);
   const [goals, setGoals] = useState(initialGoals);
   const [isPaused, setIsPaused] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>("Connected to class: Linear Equations 101");
   
-  // Simulate teacher slide changes
-  useEffect(() => {
-    const slideChangeListener = (event: MessageEvent) => {
-      if (event.data && event.data.type === 'slideChange') {
-        setCurrentSlide(event.data.slideIndex);
-        toast.info(`Teacher changed to slide ${event.data.slideIndex + 1}`);
-      }
-      
-      if (event.data && event.data.type === 'pauseChat') {
-        setIsPaused(event.data.isPaused);
-        if (event.data.isPaused) {
-          toast.info('Chat has been paused by the teacher');
-        } else {
-          toast.info('Chat has been resumed by the teacher');
-        }
-      }
-    };
-    
-    // For demonstration purposes - in a real app this would use WebSockets
-    window.addEventListener('message', slideChangeListener);
-    
-    // Simulate random teacher actions for the demo
-    const interval = setInterval(() => {
-      // Randomly change slides or pause/resume
-      const action = Math.random();
-      if (action > 0.7) {
-        const newSlideIndex = Math.floor(Math.random() * slides.length);
-        window.postMessage({ type: 'slideChange', slideIndex: newSlideIndex }, '*');
-      } else if (action > 0.4) {
-        window.postMessage({ type: 'pauseChat', isPaused: !isPaused }, '*');
-      }
-    }, 45000); // Every 45 seconds
-    
-    return () => {
-      window.removeEventListener('message', slideChangeListener);
-      clearInterval(interval);
-    };
-  }, [slides.length, isPaused]);
+  const handleSlideChange = (slideIndex: number) => {
+    setCurrentSlide(slideIndex);
+  };
   
   const handleGoalCompleted = (goalId: string) => {
     setGoals(currentGoals => 
@@ -79,6 +51,13 @@ const StudentView = () => {
         goal.id === goalId ? { ...goal, completed: true } : goal
       )
     );
+    toast.success(`Goal completed: ${goals.find(g => g.id === goalId)?.description}`);
+  };
+  
+  const simulateTeacherPause = () => {
+    // This is just for demo purposes to simulate what happens when a teacher pauses
+    setIsPaused(!isPaused);
+    toast.info(isPaused ? 'Chat has been resumed by the teacher' : 'Chat has been paused by the teacher');
   };
   
   return (
@@ -86,8 +65,20 @@ const StudentView = () => {
       <div className="flex flex-col h-[calc(100vh-8rem)]">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Student View</h1>
-          <div className="text-sm font-medium text-muted-foreground animate-slide-in">
-            Connected to class: Linear Equations 101
+          <div className="flex items-center gap-4">
+            {statusMessage && (
+              <div className="text-sm font-medium text-muted-foreground px-3 py-1 bg-muted/30 rounded-md">
+                {statusMessage}
+              </div>
+            )}
+            {/* Demo button to simulate teacher actions */}
+            <Button 
+              variant="outline" 
+              onClick={simulateTeacherPause}
+              className="text-sm"
+            >
+              Simulate Teacher {isPaused ? "Resume" : "Pause"}
+            </Button>
           </div>
         </div>
         
@@ -96,9 +87,17 @@ const StudentView = () => {
             <div className="flex-1">
               <SlideViewer 
                 slides={slides} 
-                currentSlide={currentSlide} 
+                currentSlide={currentSlide}
+                onSlideChange={handleSlideChange}
                 className="h-full"
               />
+            </div>
+            
+            <div className="bg-white rounded-lg border p-4">
+              <h3 className="font-medium mb-2">Current Slide: {currentSlide + 1} of {slides.length}</h3>
+              <p className="text-sm text-muted-foreground">
+                Move through the slides to see different content types (images, markdown, quizzes)
+              </p>
             </div>
           </div>
           
