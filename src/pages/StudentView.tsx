@@ -1,16 +1,25 @@
 
 import { useState, useEffect } from 'react';
 import MainLayout from '@/components/layouts/MainLayout';
-import SlideViewer from '@/components/ui/SlideViewer';
+import SlideViewer, { SlideContent } from '@/components/ui/SlideViewer';
 import ChatWindow from '@/components/ui/ChatWindow';
 import GoalTracker from '@/components/ui/GoalTracker';
 import { toast } from 'sonner';
 
 // Use the same demo slides and goals as teacher view
-const demoSlides = [
-  'https://images.unsplash.com/photo-1589756842055-e4a8d757e238?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80',
-  'https://images.unsplash.com/photo-1562654306-973b5cfe0c86?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80',
-  'https://images.unsplash.com/photo-1625895197185-efcec01cffe0?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80',
+const demoSlides: SlideContent[] = [
+  {
+    type: 'image',
+    content: 'https://images.unsplash.com/photo-1589756842055-e4a8d757e238?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80'
+  },
+  {
+    type: 'image',
+    content: 'https://images.unsplash.com/photo-1562654306-973b5cfe0c86?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80'
+  },
+  {
+    type: 'image',
+    content: 'https://images.unsplash.com/photo-1625895197185-efcec01cffe0?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80'
+  },
 ];
 
 const initialGoals = [

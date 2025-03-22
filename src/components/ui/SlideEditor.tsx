@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, X, FileImage, FilePdf, FileText } from 'lucide-react';
+import { Plus, X, FileImage, File, FileText } from 'lucide-react';
 import { SlideContent } from './SlideViewer';
 
 interface SlideEditorProps {
@@ -132,7 +132,7 @@ const SlideEditor = ({ slide, onUpdate, onClose }: SlideEditorProps) => {
               Image
             </TabsTrigger>
             <TabsTrigger value="pdf" className="flex items-center">
-              <FilePdf className="mr-2 h-4 w-4" />
+              <File className="mr-2 h-4 w-4" />
               PDF
             </TabsTrigger>
             <TabsTrigger value="markdown" className="flex items-center">
