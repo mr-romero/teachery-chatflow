@@ -1,69 +1,86 @@
-# Welcome to your Lovable project
+# Teachery - Interactive Classroom Learning Platform
 
-## Project info
+A modern web application for interactive classroom learning that combines slide presentations with AI-powered tutoring and goal tracking.
 
-**URL**: https://lovable.dev/projects/b80ab930-f171-4c08-ae18-a90b64ee1330
+## Features
 
-## How can I edit this code?
+- 🎯 **Learning Goal Management**
+  - Create and track specific learning objectives
+  - Add answer keys for automated progress tracking
+  - Monitor student progress in real-time
 
-There are several ways of editing your application.
+- 📊 **Interactive Slides**
+  - Support for Markdown content
+  - Multiple choice questions
+  - Image uploads
+  - Associate goals with specific slides
 
-**Use Lovable**
+- 🤖 **AI Tutor Integration**
+  - Powered by OpenRouter.ai with gpt-4o-mini
+  - Contextual tutoring based on current learning goals
+  - Automatic goal completion tracking
+  - Customizable system prompts
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/b80ab930-f171-4c08-ae18-a90b64ee1330) and start prompting.
+- 👩‍🏫 **Teacher Controls**
+  - Real-time class management
+  - Pause/resume student chats
+  - Monitor student progress
+  - Save and load lesson plans
 
-Changes made via Lovable will be committed automatically to this repo.
+## Getting Started
 
-**Use your preferred IDE**
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+3. Create a `.env` file with your OpenRouter API key:
+   ```
+   VITE_OPENROUTER_API_KEY=your_api_key_here
+   VITE_OPENROUTER_REFERRER=https://your-domain.com
+   VITE_LLM_MODEL_ID=gpt-4o-mini
+   ```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+4. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-Follow these steps:
+## Project Structure
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+- `src/pages/` - Main page components (TeacherDashboard, StudentView)
+- `src/components/ui/` - Reusable UI components
+- `src/types/` - TypeScript type definitions
+- `src/lib/` - Utility functions and helpers
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Key Components
 
-# Step 3: Install the necessary dependencies.
-npm i
+### TeacherDashboard
+- Create and manage slides
+- Monitor student progress
+- Set learning goals
+- Control classroom interactions
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+### StudentView
+- View slides
+- Interact with AI tutor
+- Track personal progress
+- Submit answers to questions
 
-**Edit a file directly in GitHub**
+### SlideEditor
+- Create/edit slide content
+- Add multiple choice questions
+- Associate learning goals
+- Preview content
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Technology Stack
 
-**Use GitHub Codespaces**
+- React with TypeScript
+- Tailwind CSS for styling
+- OpenRouter.ai for AI integration
+- Vite for build tooling
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## License
 
-## What technologies are used for this project?
-
-This project is built with .
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/b80ab930-f171-4c08-ae18-a90b64ee1330) and click on Share -> Publish.
-
-## I want to use a custom domain - is that possible?
-
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+MIT

@@ -1,201 +1,191 @@
-
-import { useState, useEffect } from 'react';
+import React from 'react';
 import MainLayout from '@/components/layouts/MainLayout';
-import SlideViewer, { SlideContent } from '@/components/ui/SlideViewer';
-import ChatWindow from '@/components/ui/ChatWindow';
-import GoalTracker from '@/components/ui/GoalTracker';
+import { SlideViewer } from '@/components/ui/SlideViewer';
+import { ChatInterface } from '@/components/ui/ChatInterface';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Lesson, StudentSession } from '@/types';
 import { toast } from 'sonner';
-import { useNavigate, useLocation } from 'react-router-dom';
-
-// Default slides
-const defaultSlides: SlideContent[] = [
-  {
-    type: 'image',
-    content: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80'
-  },
-  {
-    type: 'image',
-    content: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=1200&q=80'
-  },
-  {
-    type: 'markdown',
-    content: '# Linear Equations\n\nA linear equation is an equation that can be written in the form:\n\n**y = mx + b**\n\nWhere:\n- m is the slope of the line\n- b is the y-intercept',
-    multipleChoice: {
-      question: 'What does the variable m represent in a linear equation?',
-      options: ['The y-intercept', 'The slope', 'The x-coordinate', 'The origin'],
-      correctAnswer: 1
-    }
-  },
-];
-
-const defaultGoals = [
-  { id: '1', description: 'Identify the y-intercept in a linear equation', completed: false },
-  { id: '2', description: 'Calculate the slope of a line', completed: false },
-  { id: '3', description: 'Understand the slope-intercept form', completed: false },
-];
+import { lessonStore } from '@/lib/stores/lessonStore';
+import { studentStore } from '@/lib/stores/studentStore';
 
 const StudentView = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [slides, setSlides] = useState<SlideContent[]>(defaultSlides);
-  const [goals, setGoals] = useState(defaultGoals);
-  const [isPaused, setIsPaused] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>("Connected to class: Linear Equations 101");
-  const [lessonData, setLessonData] = useState<{title: string; slides: SlideContent[]; goals: typeof defaultGoals} | null>(null);
-  
-  // Try to load lesson data from the URL params
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const lessonCode = params.get('code');
-    
-    if (lessonCode) {
-      setStatusMessage(`Joining class with code: ${lessonCode}...`);
-      
-      // In a real app, this would fetch lesson data from a server
-      // For now, we'll simulate joining with the default data
-      setTimeout(() => {
-        toast.success(`Joined class with code: ${lessonCode}`);
-        setStatusMessage(`Connected to class: Linear Equations 101 (${lessonCode})`);
-      }, 1500);
-    }
-    
-    // Check for uploaded lesson data (this would come from loading a file in a real app)
-    const storedLesson = localStorage.getItem('currentLesson');
-    if (storedLesson) {
-      try {
-        const lessonData = JSON.parse(storedLesson);
-        setSlides(lessonData.slides || defaultSlides);
-        setGoals(lessonData.goals || defaultGoals);
-        setStatusMessage(`Connected to class: ${lessonData.title || 'Linear Equations 101'}`);
-        toast.success(`Loaded lesson: ${lessonData.title || 'Linear Equations 101'}`);
-      } catch (e) {
-        console.error('Failed to parse stored lesson data', e);
-      }
-    }
-  }, [location.search]);
-  
-  const handleSlideChange = (slideIndex: number) => {
-    setCurrentSlide(slideIndex);
-  };
-  
-  const handleGoalCompleted = (goalId: string) => {
-    setGoals(currentGoals => 
-      currentGoals.map(goal => 
-        goal.id === goalId ? { ...goal, completed: true } : goal
-      )
-    );
-    toast.success(`Goal completed: ${goals.find(g => g.id === goalId)?.description}`);
-  };
-  
-  const handleAnswerSubmit = (isCorrect: boolean) => {
-    if (isCorrect) {
-      toast.success('Correct answer!');
-      
-      // If this slide helps complete a goal, mark it as completed
-      // In a real app, this would be more sophisticated
-      if (currentSlide === 2 && !goals[0].completed) {
-        handleGoalCompleted('1');
-      }
-    } else {
-      toast.error('Incorrect answer. Try again!');
-    }
-  };
-  
-  const handleUploadLesson = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const result = e.target?.result;
-        if (typeof result === 'string') {
-          const lessonData = JSON.parse(result);
-          setSlides(lessonData.slides || []);
-          setGoals(lessonData.goals || []);
-          setStatusMessage(`Loaded lesson: ${lessonData.title || 'Untitled Lesson'}`);
-          
-          // Store in localStorage for persistence
-          localStorage.setItem('currentLesson', result);
-          
-          toast.success(`Lesson loaded: ${lessonData.title || 'Untitled Lesson'}`);
+  const [currentLesson, setCurrentLesson] = React.useState<Lesson | null>(null);
+  const [currentSlide, setCurrentSlide] = React.useState(0);
+  const [accessCode, setAccessCode] = React.useState('');
+  const [isJoined, setIsJoined] = React.useState(false);
+  const [studentName, setStudentName] = React.useState('');
+  const [session, setSession] = React.useState<StudentSession | null>(null);
+
+  // Check for existing session
+  React.useEffect(() => {
+    // Get student ID from local storage
+    const savedStudentId = localStorage.getItem('teachery_current_student');
+    if (savedStudentId) {
+      const savedSession = studentStore.getSession(savedStudentId);
+      if (savedSession) {
+        const lesson = lessonStore.getLessonById(savedSession.lessonId);
+        if (lesson) {
+          setSession(savedSession);
+          setStudentName(savedSession.studentName);
+          setCurrentLesson(lesson);
+          setCurrentSlide(savedSession.currentSlide);
+          setIsJoined(true);
+          toast.success(`Welcome back, ${savedSession.studentName}!`);
         }
-      } catch (error) {
-        toast.error('Failed to parse lesson file');
-        console.error(error);
       }
-    };
-    reader.readAsText(file);
+    }
+  }, []);
+
+  // Keep session alive and sync with teacher
+  React.useEffect(() => {
+    if (isJoined && session && currentLesson) {
+      const updateInterval = setInterval(() => {
+        // Update last active timestamp
+        studentStore.updateSession(session.studentId, {
+          lastActive: Date.now(),
+          currentSlide
+        });
+
+        // Check for lesson updates
+        const updatedLesson = lessonStore.getLessonById(currentLesson.id);
+        if (updatedLesson) {
+          setCurrentLesson(updatedLesson);
+          
+          // Sync with teacher's slide if different
+          const teacherSlide = localStorage.getItem(`teachery_lesson_${updatedLesson.id}_slide`);
+          if (teacherSlide) {
+            const targetSlide = parseInt(teacherSlide, 10);
+            if (!isNaN(targetSlide) && targetSlide !== currentSlide) {
+              setCurrentSlide(targetSlide);
+            }
+          }
+        } else {
+          // Lesson ended
+          handleEndLesson();
+          toast.error('The lesson has ended');
+        }
+      }, 1000);
+
+      return () => clearInterval(updateInterval);
+    }
+  }, [isJoined, session, currentLesson, currentSlide]);
+
+  const joinLesson = async () => {
+    if (!accessCode.trim() || !studentName.trim()) {
+      toast.error('Please enter both your name and the class code');
+      return;
+    }
+
+    try {
+      const lesson = lessonStore.getLessonByAccessCode(accessCode.trim().toUpperCase());
+      
+      if (!lesson) {
+        toast.error('Invalid class code. Please check and try again.');
+        return;
+      }
+
+      // Create new student session
+      const newSession = studentStore.createSession(studentName, lesson.id);
+      setSession(newSession);
+      
+      // Save student ID for reconnection
+      localStorage.setItem('teachery_current_student', newSession.studentId);
+
+      setCurrentLesson(lesson);
+
+      // Set initial slide from teacher's position
+      const savedSlide = localStorage.getItem(`teachery_lesson_${lesson.id}_slide`);
+      if (savedSlide) {
+        const initialSlide = parseInt(savedSlide, 10);
+        setCurrentSlide(initialSlide);
+        studentStore.updateSession(newSession.studentId, { currentSlide: initialSlide });
+      }
+
+      setIsJoined(true);
+      toast.success(`Welcome ${studentName}! You've joined ${lesson.title}`);
+    } catch (error) {
+      console.error('Join error:', error);
+      toast.error('Failed to join the lesson. Please try again.');
+    }
   };
-  
+
+  const handleEndLesson = () => {
+    if (session) {
+      studentStore.endSession(session.studentId);
+      localStorage.removeItem('teachery_current_student');
+    }
+    setSession(null);
+    setCurrentLesson(null);
+    setIsJoined(false);
+    setCurrentSlide(0);
+  };
+
+  const handleGoalComplete = React.useCallback((goalId: string) => {
+    if (session) {
+      studentStore.addCompletedGoal(session.studentId, goalId);
+      toast.success('Goal completed! Your progress has been saved.');
+    }
+  }, [session]);
+
   return (
     <MainLayout>
-      <div className="flex flex-col h-[calc(100vh-8rem)]">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Student View</h1>
-          <div className="flex items-center gap-4">
-            {statusMessage && (
-              <div className="text-sm font-medium text-muted-foreground px-3 py-1 bg-muted/30 rounded-md">
-                {statusMessage}
+      {!isJoined ? (
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)]">
+          <div className="w-full max-w-md space-y-4">
+            <h2 className="text-2xl font-bold text-center">Join Lesson</h2>
+            <div className="space-y-4">
+              <Input
+                value={studentName}
+                onChange={(e) => setStudentName(e.target.value)}
+                placeholder="Your name..."
+              />
+              <Input
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
+                placeholder="Enter class code..."
+                className="font-mono"
+              />
+              <Button 
+                onClick={joinLesson} 
+                className="w-full"
+                disabled={!accessCode.trim() || !studentName.trim()}
+              >
+                Join
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col h-[calc(100vh-8rem)]">
+          <div className="flex items-center justify-between p-4 bg-muted/30 border-b">
+            <div>
+              <h2 className="font-semibold">{currentLesson?.title}</h2>
+              <p className="text-sm text-muted-foreground">Logged in as {studentName}</p>
+            </div>
+            {currentLesson?.isPaused && (
+              <div className="text-yellow-600 font-medium">
+                Class is paused by the teacher
               </div>
             )}
-            <input
-              type="file"
-              id="lessonUpload"
-              className="hidden"
-              accept=".json"
-              onChange={handleUploadLesson}
-            />
-            <label htmlFor="lessonUpload">
-              <Button 
-                variant="outline" 
-                className="text-sm"
-                onClick={() => document.getElementById('lessonUpload')?.click()}
-              >
-                Load Lesson File
-              </Button>
-            </label>
           </div>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-          <div className="lg:col-span-2 flex flex-col space-y-6">
-            <div className="flex-1">
-              <SlideViewer 
-                slides={slides} 
-                currentSlide={currentSlide}
-                onSlideChange={handleSlideChange}
-                onAnswerSubmit={handleAnswerSubmit}
-                className="h-full"
-              />
-            </div>
-            
-            <div className="bg-white rounded-lg border p-4">
-              <h3 className="font-medium mb-2">Current Slide: {currentSlide + 1} of {slides.length}</h3>
-              <p className="text-sm text-muted-foreground">
-                Use the navigation controls to move through the slides
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex flex-col space-y-6 h-full">
-            <GoalTracker 
-              goals={goals} 
-              mode="student"
-              className="flex-none"
+          <div className="grid grid-cols-2 gap-6 flex-1 p-6">
+            <SlideViewer
+              slides={currentLesson?.slides || []}
+              currentSlide={currentSlide}
+              onSlideChange={() => {}}
+              editable={false}
+              className="h-full"
             />
-            
-            <ChatWindow 
-              goals={goals}
-              onGoalCompleted={handleGoalCompleted}
-              isPaused={isPaused}
-              className="flex-1"
+            <ChatInterface
+              goals={currentLesson?.slides[currentSlide]?.goals || []}
+              isPaused={currentLesson?.isPaused || false}
+              onGoalComplete={handleGoalComplete}
+              systemPrompt={currentLesson?.systemPrompt}
             />
           </div>
         </div>
-      </div>
+      )}
     </MainLayout>
   );
 };

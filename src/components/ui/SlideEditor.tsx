@@ -1,299 +1,393 @@
-
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import React, { useState } from 'react';
+import { Button } from './button';
+import { Input } from './input';
+import { Label } from './label';
+import { Textarea } from './textarea';
+import { Card } from './card';
+import { MultipleChoiceEditor } from './MultipleChoiceEditor';
+import { EquationEditor } from './equation';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './dialog';
+import { Slide, Goal, MultipleChoice, Equation } from '@/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
+import { Image as ImageIcon, Plus, X, Upload, AlignLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import { Plus, X, FileImage, FileText } from 'lucide-react';
-import { SlideContent } from './SlideViewer';
-import { DialogTitle, DialogHeader, DialogDescription } from '@/components/ui/dialog';
+import { uploadImage } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 interface SlideEditorProps {
-  slide: SlideContent;
-  onUpdate: (slide: SlideContent) => void;
+  slide: Slide;
+  onUpdate: (slide: Slide) => void;
   onClose: () => void;
+  availableGoals: Goal[];
 }
 
-const SlideEditor = ({ slide, onUpdate, onClose }: SlideEditorProps) => {
-  const [editedSlide, setEditedSlide] = useState<SlideContent>(slide);
-  const [fileUpload, setFileUpload] = useState<File | null>(null);
-  const [multipleChoiceOptions, setMultipleChoiceOptions] = useState<string[]>(
-    slide.multipleChoice?.options || ['', '', '', '']
-  );
-  const [correctAnswerIndex, setCorrectAnswerIndex] = useState<number>(
-    slide.multipleChoice?.correctAnswer || 0
-  );
+export function SlideEditor({ slide, onUpdate, onClose, availableGoals }: SlideEditorProps) {
+  const [title, setTitle] = useState(slide.title || '');
+  const [currentQuestion, setCurrentQuestion] = useState<MultipleChoice>({
+    id: Math.random().toString(36).substr(2, 9),
+    question: '',
+    choices: [],
+    type: 'basic',
+    explanation: ''
+  });
+  const [showQuizDialog, setShowQuizDialog] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleAddEquation = () => {
+    if (slide.content.type === 'equation') {
+      const newEquation: Equation = {
+        latex: '',
+        displayMode: true
+      };
+      onUpdate({
+        ...slide,
+        content: {
+          type: 'equation',
+          content: {
+            equations: [...slide.content.content.equations, newEquation]
+          }
+        }
+      });
+    }
+  };
+
+  const handleUpdateEquation = (index: number, equation: Equation) => {
+    if (slide.content.type === 'equation') {
+      const equations = slide.content.content.equations.map((eq, i) => 
+        i === index ? equation : eq
+      );
+      onUpdate({
+        ...slide,
+        content: {
+          type: 'equation',
+          content: { equations }
+        }
+      });
+    }
+  };
+
+  const handleDeleteEquation = (index: number) => {
+    if (slide.content.type === 'equation') {
+      const equations = slide.content.content.equations.filter((_, i) => i !== index);
+      onUpdate({
+        ...slide,
+        content: {
+          type: 'equation',
+          content: { equations }
+        }
+      });
+    }
+  };
+
+  const handleAddQuestion = (type: 'quiz' | 'image-quiz') => {
+    const question: MultipleChoice = {
+      id: Math.random().toString(36).substr(2, 9),
+      question: '',
+      choices: [],
+      type: 'basic',
+      explanation: ''
+    };
+
+    if (type === 'quiz') {
+      onUpdate({
+        ...slide,
+        content: {
+          type: 'quiz',
+          content: {
+            questions: [
+              ...(slide.content.type === 'quiz' ? slide.content.content.questions : []),
+              question
+            ]
+          }
+        }
+      });
+    } else if (type === 'image-quiz' && slide.content.type === 'image') {
+      onUpdate({
+        ...slide,
+        content: {
+          type: 'image',
+          content: {
+            ...slide.content.content,
+            questions: [
+              ...(slide.content.content.questions || []),
+              question
+            ]
+          }
+        }
+      });
+    }
+    setCurrentQuestion(question);
+    setShowQuizDialog(true);
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
-    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error('Only JPG, PNG and PDF files are supported');
-      return;
+    try {
+      setUploading(true);
+      const url = await uploadImage(file);
+      onUpdate({
+        ...slide,
+        content: {
+          type: 'image',
+          content: {
+            url,
+            questions: []
+          }
+        }
+      });
+      toast.success('Image uploaded successfully');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload image');
+    } finally {
+      setUploading(false);
     }
-
-    setFileUpload(file);
-    
-    // Create URL for preview
-    const fileUrl = URL.createObjectURL(file);
-    setEditedSlide({
-      ...editedSlide,
-      type: file.type === 'application/pdf' ? 'pdf' : 'image',
-      content: fileUrl,
-    });
   };
 
-  const handleMarkdownChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setEditedSlide({
-      ...editedSlide,
-      content: e.target.value,
-    });
-  };
-
-  const handleOptionChange = (index: number, value: string) => {
-    const updatedOptions = [...multipleChoiceOptions];
-    updatedOptions[index] = value;
-    setMultipleChoiceOptions(updatedOptions);
-  };
-
-  const addMultipleChoice = () => {
-    setEditedSlide({
-      ...editedSlide,
-      multipleChoice: {
-        question: 'Question?',
-        options: multipleChoiceOptions,
-        correctAnswer: correctAnswerIndex,
-      },
-    });
-  };
-
-  const removeMultipleChoice = () => {
-    const { multipleChoice, ...rest } = editedSlide;
-    setEditedSlide(rest);
-  };
-
-  const addEquation = () => {
-    setEditedSlide({
-      ...editedSlide,
-      equation: {
-        question: 'Solve this equation:',
-        answer: '',
-      },
-    });
-  };
-
-  const updateEquation = (field: 'question' | 'answer', value: string) => {
-    if (!editedSlide.equation) return;
-    
-    setEditedSlide({
-      ...editedSlide,
-      equation: {
-        ...editedSlide.equation,
-        [field]: value,
-      },
-    });
-  };
-
-  const removeEquation = () => {
-    const { equation, ...rest } = editedSlide;
-    setEditedSlide(rest);
-  };
-
-  const handleSave = () => {
-    onUpdate(editedSlide);
-    onClose();
-    toast.success('Slide updated successfully');
+  const handleQuestionUpdate = (updatedQuestion: MultipleChoice) => {
+    if (slide.content.type === 'quiz') {
+      // Update quiz content
+      const questions = slide.content.content.questions.map(q =>
+        q.id === updatedQuestion.id ? updatedQuestion : q
+      );
+      onUpdate({
+        ...slide,
+        content: {
+          type: 'quiz',
+          content: { questions }
+        }
+      });
+    } else if (slide.content.type === 'image') {
+      // Update image questions
+      const questions = (slide.content.content.questions || []).map(q =>
+        q.id === updatedQuestion.id ? updatedQuestion : q
+      );
+      onUpdate({
+        ...slide,
+        content: {
+          type: 'image',
+          content: {
+            ...slide.content.content,
+            questions
+          }
+        }
+      });
+    }
   };
 
   return (
-    <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-      <DialogHeader className="p-4 border-b">
-        <DialogTitle>Edit Slide</DialogTitle>
-        <DialogDescription>
-          Customize the content and interactive elements for this slide
-        </DialogDescription>
-      </DialogHeader>
-      
-      <div className="p-4 flex-1 overflow-y-auto">
-        <Tabs defaultValue={editedSlide.type} className="w-full">
-          <TabsList className="w-full mb-4">
-            <TabsTrigger value="image" className="flex items-center">
-              <FileImage className="mr-2 h-4 w-4" />
-              Image
-            </TabsTrigger>
-            <TabsTrigger value="pdf" className="flex items-center">
-              <FileText className="mr-2 h-4 w-4" />
-              PDF
-            </TabsTrigger>
-            <TabsTrigger value="markdown" className="flex items-center">
-              <FileText className="mr-2 h-4 w-4" />
-              Markdown
-            </TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="image" className="space-y-4">
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="image">Upload Image (JPG, PNG)</Label>
-              <Input id="image" type="file" accept=".jpg,.jpeg,.png" onChange={handleFileChange} />
-            </div>
-            
-            {editedSlide.type === 'image' && editedSlide.content && (
-              <div className="max-h-40 overflow-hidden rounded border">
-                <img 
-                  src={editedSlide.content} 
-                  alt="Preview" 
-                  className="w-full object-contain"
-                />
-              </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="pdf" className="space-y-4">
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="pdf">Upload PDF</Label>
-              <Input id="pdf" type="file" accept=".pdf" onChange={handleFileChange} />
-            </div>
-            
-            {editedSlide.type === 'pdf' && editedSlide.content && (
-              <div className="text-sm text-muted-foreground">
-                PDF selected: {fileUpload?.name || 'document.pdf'}
-              </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="markdown" className="space-y-4">
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="markdown">Markdown Content</Label>
-              <Textarea 
-                id="markdown" 
-                value={editedSlide.type === 'markdown' ? editedSlide.content : ''} 
-                onChange={handleMarkdownChange}
-                className="min-h-[200px] font-mono"
-                placeholder="# Title
-                
-## Subtitle
-
-Content goes here..."
-              />
-            </div>
-          </TabsContent>
-        </Tabs>
-        
-        <div className="mt-6 space-y-4">
-          <div className="flex justify-between items-center">
-            <h4 className="font-medium">Additional Components</h4>
-          </div>
-          
-          <div className="space-y-4 border-t pt-4">
-            <div className="flex justify-between items-center">
-              <h5 className="text-sm font-medium">Multiple Choice Question</h5>
-              {editedSlide.multipleChoice ? (
-                <Button variant="destructive" size="sm" onClick={removeMultipleChoice}>
-                  Remove
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" onClick={addMultipleChoice}>
-                  <Plus className="mr-1 h-3 w-3" /> Add
-                </Button>
-              )}
-            </div>
-            
-            {editedSlide.multipleChoice && (
-              <div className="space-y-3 rounded-md border p-3">
-                <div className="grid w-full items-center gap-1.5">
-                  <Label htmlFor="question">Question</Label>
-                  <Input 
-                    id="question" 
-                    value={editedSlide.multipleChoice.question} 
-                    onChange={(e) => setEditedSlide({
-                      ...editedSlide,
-                      multipleChoice: {
-                        ...editedSlide.multipleChoice!,
-                        question: e.target.value
-                      }
-                    })}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Options</Label>
-                  {multipleChoiceOptions.map((option, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <div className="flex-shrink-0">
-                        <input
-                          type="radio"
-                          name="correctAnswer"
-                          checked={idx === correctAnswerIndex}
-                          onChange={() => setCorrectAnswerIndex(idx)}
-                          className="rounded-full"
-                        />
-                      </div>
-                      <Input
-                        value={option}
-                        onChange={(e) => handleOptionChange(idx, e.target.value)}
-                        placeholder={`Option ${idx + 1}`}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            <div className="flex justify-between items-center">
-              <h5 className="text-sm font-medium">Equation Answer Key</h5>
-              {editedSlide.equation ? (
-                <Button variant="destructive" size="sm" onClick={removeEquation}>
-                  Remove
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" onClick={addEquation}>
-                  <Plus className="mr-1 h-3 w-3" /> Add
-                </Button>
-              )}
-            </div>
-            
-            {editedSlide.equation && (
-              <div className="space-y-3 rounded-md border p-3">
-                <div className="grid w-full items-center gap-1.5">
-                  <Label htmlFor="eq-question">Question</Label>
-                  <Input 
-                    id="eq-question" 
-                    value={editedSlide.equation.question} 
-                    onChange={(e) => updateEquation('question', e.target.value)}
-                  />
-                </div>
-                
-                <div className="grid w-full items-center gap-1.5">
-                  <Label htmlFor="eq-answer">Answer Key</Label>
-                  <Input 
-                    id="eq-answer" 
-                    value={editedSlide.equation.answer} 
-                    onChange={(e) => updateEquation('answer', e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+    <div className="space-y-6">
+      {/* Basic info */}
+      <div>
+        <Label>Slide Title</Label>
+        <Input
+          value={title}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            onUpdate({ ...slide, title: e.target.value });
+          }}
+          placeholder="Enter slide title..."
+        />
       </div>
-      
-      <div className="p-4 border-t flex justify-end gap-2">
-        <Button variant="outline" onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSave}>Save Changes</Button>
+
+      {/* Content editing area */}
+      <div className="space-y-4">
+        {/* Content type selector */}
+        <div className="flex items-center justify-between">
+          <Label>Content Type</Label>
+          <Select
+            value={slide.content.type}
+            onValueChange={(value: 'markdown' | 'image' | 'quiz' | 'equation') => {
+              let newContent;
+              switch (value) {
+                case 'markdown':
+                  newContent = { type: 'markdown', content: { text: '' } };
+                  break;
+                case 'image':
+                  newContent = { type: 'image', content: { url: '', questions: [] } };
+                  break;
+                case 'quiz':
+                  newContent = { type: 'quiz', content: { questions: [] } };
+                  break;
+                case 'equation':
+                  newContent = { type: 'equation', content: { equations: [] } };
+                  break;
+              }
+              onUpdate({ ...slide, content: newContent });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="markdown">Text/Markdown</SelectItem>
+              <SelectItem value="image">Image</SelectItem>
+              <SelectItem value="quiz">Quiz</SelectItem>
+              <SelectItem value="equation">Equation</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Content editor */}
+        {slide.content.type === 'markdown' && (
+          <Card className="p-4 space-y-2">
+            <Label>Content</Label>
+            <Textarea
+              value={slide.content.content.text}
+              onChange={(e) => 
+                onUpdate({
+                  ...slide,
+                  content: {
+                    type: 'markdown',
+                    content: { text: e.target.value }
+                  }
+                })
+              }
+              placeholder="Enter your content using markdown..."
+              className="min-h-[200px] font-mono"
+            />
+            <div className="text-xs text-muted-foreground">
+              Markdown formatting supported: **bold**, *italic*, [links](url), - lists, etc.
+            </div>
+          </Card>
+        )}
+
+        {slide.content.type === 'image' && (
+          <div className="space-y-4">
+            {slide.content.content.url ? (
+              <div className="relative rounded-lg overflow-hidden bg-black/5">
+                <img 
+                  src={slide.content.content.url} 
+                  alt="Content" 
+                  className="max-h-[300px] w-full object-contain"
+                />
+                <Button
+                  variant="outline"
+                  className="absolute top-2 right-2"
+                  onClick={() => handleAddQuestion('image-quiz')}
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Add Question
+                </Button>
+              </div>
+            ) : (
+              <label className="cursor-pointer">
+                <div className={cn(
+                  "h-[200px] flex flex-col items-center justify-center border-2 border-dashed rounded-lg",
+                  "hover:bg-muted/50 transition-colors"
+                )}>
+                  <Upload className="h-8 w-8 mb-2 text-muted-foreground" />
+                  <span className="text-muted-foreground">Click to upload an image</span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={uploading}
+                  />
+                </div>
+              </label>
+            )}
+          </div>
+        )}
+
+        {slide.content.type === 'quiz' && (
+          <Card className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <Label>Quiz Questions</Label>
+              <Button onClick={() => handleAddQuestion('quiz')}>
+                <Plus className="h-4 w-4 mr-2" /> Add Question
+              </Button>
+            </div>
+            {slide.content.content.questions.map((question, index) => (
+              <div key={question.id} className="bg-muted/20 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Question {index + 1}</h4>
+                <p className="text-sm mb-4">{question.question}</p>
+              </div>
+            ))}
+          </Card>
+        )}
+
+        {slide.content.type === 'equation' && (
+          <Card className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <Label>Equations</Label>
+              <Button onClick={handleAddEquation}>
+                <Plus className="h-4 w-4 mr-2" /> Add Equation
+              </Button>
+            </div>
+            {slide.content.content.equations.map((equation, index) => (
+              <Card key={index} className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium">Equation {index + 1}</h4>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleDeleteEquation(index)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <EquationEditor
+                  equation={equation}
+                  onChange={(eq) => handleUpdateEquation(index, eq)}
+                />
+              </Card>
+            ))}
+          </Card>
+        )}
+
+        {/* Quiz Question Dialog */}
+        {showQuizDialog && (
+          <Dialog open={showQuizDialog} onOpenChange={setShowQuizDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Question</DialogTitle>
+                <DialogDescription>
+                  Create a new question and set the correct answer.
+                </DialogDescription>
+              </DialogHeader>
+              <MultipleChoiceEditor
+                question={currentQuestion}
+                onChange={handleQuestionUpdate}
+                onDelete={() => setShowQuizDialog(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
+      {/* Goals */}
+      <div>
+        <Label className="mb-2 block">Associated Goals</Label>
+        <Card className="p-4 space-y-2">
+          {availableGoals.map(goal => (
+            <div key={goal.id} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={slide.goals.some(g => g.id === goal.id)}
+                onChange={(e) => {
+                  const goals = e.target.checked
+                    ? [...slide.goals, goal]
+                    : slide.goals.filter(g => g.id !== goal.id);
+                  onUpdate({ ...slide, goals });
+                }}
+              />
+              <span>{goal.description}</span>
+            </div>
+          ))}
+        </Card>
+      </div>
+
+      <div className="flex justify-end gap-4">
+        <Button variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={onClose}>
+          Save Changes
+        </Button>
       </div>
     </div>
   );
-};
-
-export default SlideEditor;
+}
