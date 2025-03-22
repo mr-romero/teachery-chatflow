@@ -25,6 +25,7 @@ interface SlideViewerProps {
   onSlideChange?: (slideIndex: number) => void;
   editable?: boolean;
   className?: string;
+  onAnswerSubmit?: (isCorrect: boolean) => void;
 }
 
 const SlideViewer = ({
@@ -32,16 +33,21 @@ const SlideViewer = ({
   currentSlide,
   onSlideChange,
   editable = false,
-  className
+  className,
+  onAnswerSubmit
 }: SlideViewerProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [answered, setAnswered] = useState(false);
 
   // Reset loading state and error when slide changes
   useEffect(() => {
     setIsLoading(true);
     setError(null);
+    setSelectedAnswer(null);
+    setAnswered(false);
     
     const timer = setTimeout(() => {
       setIsLoading(false);
@@ -66,6 +72,25 @@ const SlideViewer = ({
     setRetryCount(prev => prev + 1);
     setError(null);
     setIsLoading(true);
+  };
+
+  const handleAnswerSelect = (index: number) => {
+    if (answered) return;
+    setSelectedAnswer(index);
+  };
+
+  const handleAnswerSubmit = () => {
+    if (selectedAnswer === null || answered) return;
+    
+    const currentSlideContent = slides[currentSlide];
+    if (currentSlideContent.multipleChoice) {
+      const isCorrect = selectedAnswer === currentSlideContent.multipleChoice.correctAnswer;
+      setAnswered(true);
+      
+      if (onAnswerSubmit) {
+        onAnswerSubmit(isCorrect);
+      }
+    }
   };
 
   const renderSlideContent = (slide: SlideContent) => {
@@ -100,9 +125,24 @@ const SlideViewer = ({
                 <h3 className="font-medium text-lg mb-3">{slide.multipleChoice.question}</h3>
                 <div className="space-y-2">
                   {slide.multipleChoice.options.map((option, idx) => (
-                    <div key={idx} className="flex items-center space-x-2">
-                      <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full border">
-                        {idx === slide.multipleChoice?.correctAnswer && editable && (
+                    <div 
+                      key={idx} 
+                      className={cn(
+                        "flex items-center space-x-2 p-2 rounded cursor-pointer",
+                        selectedAnswer === idx ? "bg-primary/10" : "hover:bg-muted/50",
+                        answered && idx === slide.multipleChoice?.correctAnswer && "bg-green-100 border-green-500 border",
+                        answered && selectedAnswer === idx && idx !== slide.multipleChoice?.correctAnswer && "bg-red-100 border-red-500 border"
+                      )}
+                      onClick={() => handleAnswerSelect(idx)}
+                    >
+                      <div className={cn(
+                        "flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full border",
+                        selectedAnswer === idx && !answered && "border-primary"
+                      )}>
+                        {answered && idx === slide.multipleChoice?.correctAnswer && (
+                          <div className="w-3 h-3 bg-green-500 rounded-full" />
+                        )}
+                        {selectedAnswer === idx && !answered && (
                           <div className="w-3 h-3 bg-primary rounded-full" />
                         )}
                       </div>
@@ -110,9 +150,28 @@ const SlideViewer = ({
                     </div>
                   ))}
                 </div>
+                
+                {!editable && !answered && selectedAnswer !== null && (
+                  <Button onClick={handleAnswerSubmit} className="mt-4">
+                    Submit Answer
+                  </Button>
+                )}
+                
                 {editable && (
                   <div className="mt-2 text-xs text-muted-foreground">
                     Correct answer: Option {slide.multipleChoice.correctAnswer + 1}
+                  </div>
+                )}
+                
+                {answered && (
+                  <div className={cn(
+                    "mt-4 p-3 rounded-lg text-sm",
+                    selectedAnswer === slide.multipleChoice.correctAnswer ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                  )}>
+                    {selectedAnswer === slide.multipleChoice.correctAnswer 
+                      ? "Correct! Well done." 
+                      : `Incorrect. The correct answer is: ${slide.multipleChoice.options[slide.multipleChoice.correctAnswer]}`
+                    }
                   </div>
                 )}
               </div>

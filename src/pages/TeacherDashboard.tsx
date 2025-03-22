@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import MainLayout from '@/components/layouts/MainLayout';
 import SlideViewer, { SlideContent } from '@/components/ui/SlideViewer';
 import SlideEditor from '@/components/ui/SlideEditor';
@@ -7,20 +7,16 @@ import GoalTracker from '@/components/ui/GoalTracker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Plus, Upload, Edit, Trash2 } from 'lucide-react';
+import { Plus, Upload, Edit, Trash2, Save, FileText, FileImage } from 'lucide-react';
 
-// Demo slides
+// Initial slides
 const initialSlides: SlideContent[] = [
   {
     type: 'image',
-    content: 'https://images.unsplash.com/photo-1589756842055-e4a8d757e238?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80',
-  },
-  {
-    type: 'image',
-    content: 'https://images.unsplash.com/photo-1562654306-973b5cfe0c86?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80',
+    content: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
   },
   {
     type: 'markdown',
@@ -33,20 +29,11 @@ const initialSlides: SlideContent[] = [
   },
 ];
 
-// Demo goals
+// Initial goals
 const initialGoals = [
   { id: '1', description: 'Identify the y-intercept in a linear equation', completed: false },
   { id: '2', description: 'Calculate the slope of a line', completed: false },
   { id: '3', description: 'Understand the slope-intercept form', completed: false },
-];
-
-// Demo students
-const initialStudents = [
-  { id: '1', name: 'Alex Johnson', completedGoals: [] },
-  { id: '2', name: 'Taylor Smith', completedGoals: [] },
-  { id: '3', name: 'Jordan Brown', completedGoals: [] },
-  { id: '4', name: 'Casey Williams', completedGoals: [] },
-  { id: '5', name: 'Morgan Davis', completedGoals: [] },
 ];
 
 // Default system prompt
@@ -58,48 +45,80 @@ const TeacherDashboard = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slides, setSlides] = useState<SlideContent[]>(initialSlides);
   const [goals, setGoals] = useState(initialGoals);
-  const [students, setStudents] = useState(initialStudents);
+  const [students, setStudents] = useState<{ id: string; name: string; completedGoals: string[] }[]>([]);
   const [isPaused, setIsPaused] = useState(false);
   const [accessCode, setAccessCode] = useState('MATH101');
   const [newGoal, setNewGoal] = useState('');
   const [systemPrompt, setSystemPrompt] = useState(defaultSystemPrompt);
+  const [lessonTitle, setLessonTitle] = useState('Linear Equations 101');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Dialog states
   const [showSlideEditor, setShowSlideEditor] = useState(false);
   const [showAddSlideDialog, setShowAddSlideDialog] = useState(false);
   const [showGoalDialog, setShowGoalDialog] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
   
-  // Simulate student progress updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (Math.random() > 0.7) {
-        setStudents(currentStudents => {
-          const updatedStudents = [...currentStudents];
-          const randomStudentIndex = Math.floor(Math.random() * updatedStudents.length);
-          const randomGoalIndex = Math.floor(Math.random() * goals.length);
-          const goalId = goals[randomGoalIndex].id;
-          
-          if (!updatedStudents[randomStudentIndex].completedGoals.includes(goalId)) {
-            updatedStudents[randomStudentIndex] = {
-              ...updatedStudents[randomStudentIndex],
-              completedGoals: [...updatedStudents[randomStudentIndex].completedGoals, goalId]
-            };
-            
-            toast.success(`${updatedStudents[randomStudentIndex].name} completed a goal!`);
-          }
-          
-          return updatedStudents;
-        });
-      }
-    }, 15000); // Every 15 seconds
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
     
-    return () => clearInterval(interval);
-  }, [goals]);
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const result = e.target?.result;
+        if (typeof result === 'string') {
+          // Handle different file types
+          if (file.type.includes('image')) {
+            const newSlide: SlideContent = {
+              type: 'image',
+              content: result
+            };
+            addSlide(newSlide);
+          } else if (file.type === 'application/pdf') {
+            // For PDFs, we'd typically upload to storage
+            // This is a simplified version that won't work for PDFs
+            // In a real app, this would upload to cloud storage
+            const newSlide: SlideContent = {
+              type: 'pdf',
+              content: window.URL.createObjectURL(file)
+            };
+            addSlide(newSlide);
+          }
+        }
+      } catch (error) {
+        toast.error('Failed to process file');
+      }
+    };
+    
+    if (file.type.includes('image')) {
+      reader.readAsDataURL(file);
+    } else if (file.type === 'application/pdf') {
+      // In a real implementation, we'd upload this to storage
+      // and get a URL back, but for demo we'll just create an object URL
+      const newSlide: SlideContent = {
+        type: 'pdf',
+        content: window.URL.createObjectURL(file)
+      };
+      addSlide(newSlide);
+    }
+  };
+  
+  const addSlide = (slide: SlideContent) => {
+    setSlides((prevSlides) => [...prevSlides, slide]);
+    setCurrentSlide(slides.length); // Move to the new slide
+    toast.success('New slide added');
+    setShowAddSlideDialog(false);
+    
+    // Open the editor for the new slide
+    if (slide.type !== 'image' && slide.type !== 'pdf') {
+      setShowSlideEditor(true);
+    }
+  };
   
   const handleSlideChange = (slideIndex: number) => {
     setCurrentSlide(slideIndex);
-    // In a real app, this would sync with student views
-    toast.info(`Changed to slide ${slideIndex + 1}`);
   };
   
   const handleTogglePause = () => {
@@ -135,15 +154,14 @@ const TeacherDashboard = () => {
     toast.success('New goal added successfully');
   };
 
-  const handleAddSlide = () => {
+  const handleAddMarkdownSlide = () => {
     const newSlide: SlideContent = {
       type: 'markdown',
       content: '# New Slide\n\nAdd your content here'
     };
     
-    setSlides([...slides, newSlide]);
-    setCurrentSlide(slides.length); // Move to the new slide
-    toast.success('New slide added');
+    addSlide(newSlide);
+    setShowSlideEditor(true);
   };
 
   const handleUpdateSlide = (updatedSlide: SlideContent) => {
@@ -172,12 +190,58 @@ const TeacherDashboard = () => {
   const handleEditCurrentSlide = () => {
     setShowSlideEditor(true);
   };
+  
+  const handleSaveLesson = () => {
+    const lesson = {
+      title: lessonTitle,
+      slides,
+      goals,
+      systemPrompt
+    };
+    
+    // In a real app, this would save to a database
+    // For now, we'll just output to the console and show a success toast
+    console.log('Saving lesson:', lesson);
+    
+    // Download as JSON file
+    const blob = new Blob([JSON.stringify(lesson, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${lessonTitle.replace(/\s+/g, '_').toLowerCase()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    setShowSaveDialog(false);
+    toast.success('Lesson saved successfully');
+  };
+  
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  
+  const handleSystemPromptUpdate = () => {
+    toast.success('System prompt updated');
+    // In a real app, this would sync with an API
+  };
 
   return (
     <MainLayout>
       <div className="flex flex-col h-[calc(100vh-8rem)]">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Teacher Dashboard</h1>
+          <div className="flex items-center space-x-4">
+            <h1 className="text-2xl font-bold">Teacher Dashboard</h1>
+            <Input 
+              value={lessonTitle} 
+              onChange={(e) => setLessonTitle(e.target.value)} 
+              className="max-w-[250px] font-medium"
+              placeholder="Lesson Title"
+            />
+          </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center bg-muted/30 rounded-md px-3 py-1">
               <span className="text-sm font-medium mr-2">Class Code:</span>
@@ -223,6 +287,15 @@ const TeacherDashboard = () => {
               </div>
             </div>
             
+            {/* Hidden file input */}
+            <input 
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept="image/*,application/pdf"
+              className="hidden"
+            />
+            
             <div className="bg-white rounded-lg border p-4 animate-fade-in">
               <h3 className="font-medium mb-3">Slide Management</h3>
               <div className="flex flex-wrap gap-4">
@@ -235,9 +308,9 @@ const TeacherDashboard = () => {
                 <Button 
                   variant="outline" 
                   className="ml-auto" 
-                  onClick={() => toast.info('This would save the entire lesson')}
+                  onClick={() => setShowSaveDialog(true)}
                 >
-                  Save Lesson
+                  <Save className="mr-2 h-4 w-4" /> Save Lesson
                 </Button>
               </div>
             </div>
@@ -251,7 +324,7 @@ const TeacherDashboard = () => {
                   placeholder="Instructions for the AI assistant..."
                   className="min-h-[80px]"
                 />
-                <Button onClick={() => toast.success('System prompt saved')}>
+                <Button onClick={handleSystemPromptUpdate}>
                   Update AI Prompt
                 </Button>
                 <p className="text-xs text-muted-foreground">
@@ -298,33 +371,56 @@ const TeacherDashboard = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Slide</DialogTitle>
+            <DialogDescription>
+              Choose a type of content to add to your lesson
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <Button 
-                onClick={() => {
-                  handleAddSlide();
-                  setShowAddSlideDialog(false);
-                  setShowSlideEditor(true);
-                }}
+                onClick={triggerFileInput}
                 className="h-32 flex flex-col"
               >
-                <Upload className="h-10 w-10 mb-2" />
-                <span>Upload File</span>
-                <span className="text-xs mt-1 text-muted-foreground">(Image or PDF)</span>
+                <FileImage className="h-10 w-10 mb-2" />
+                <span>Upload Image</span>
+                <span className="text-xs mt-1 text-muted-foreground">(JPEG, PNG)</span>
               </Button>
               <Button 
-                onClick={() => {
-                  handleAddSlide();
-                  setShowAddSlideDialog(false);
-                  setShowSlideEditor(true);
-                }}
+                onClick={handleAddMarkdownSlide}
                 variant="outline"
                 className="h-32 flex flex-col"
               >
-                <Edit className="h-10 w-10 mb-2" />
-                <span>Create Markdown</span>
-                <span className="text-xs mt-1 text-muted-foreground">(Text with formatting)</span>
+                <FileText className="h-10 w-10 mb-2" />
+                <span>Create Content</span>
+                <span className="text-xs mt-1 text-muted-foreground">(Text, Quiz, etc.)</span>
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save Lesson Dialog */}
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save Lesson</DialogTitle>
+            <DialogDescription>
+              Your lesson will be saved as a file that you can share or load later
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="lesson-title" className="text-sm font-medium">Lesson Title</label>
+              <Input 
+                id="lesson-title"
+                value={lessonTitle} 
+                onChange={(e) => setLessonTitle(e.target.value)} 
+                placeholder="Enter a title for your lesson"
+              />
+            </div>
+            <div className="pt-2">
+              <Button onClick={handleSaveLesson} className="w-full">
+                <Save className="mr-2 h-4 w-4" /> Save Lesson
               </Button>
             </div>
           </div>
@@ -349,6 +445,9 @@ const TeacherDashboard = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Learning Goal</DialogTitle>
+            <DialogDescription>
+              Create a new learning objective for students to achieve
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-4">
             <Textarea

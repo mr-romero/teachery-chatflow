@@ -13,8 +13,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, X, FileImage, File, FileText } from 'lucide-react';
+import { Plus, X, FileImage, FileText } from 'lucide-react';
 import { SlideContent } from './SlideViewer';
+import { DialogTitle, DialogHeader, DialogDescription } from '@/components/ui/dialog';
 
 interface SlideEditorProps {
   slide: SlideContent;
@@ -116,13 +117,13 @@ const SlideEditor = ({ slide, onUpdate, onClose }: SlideEditorProps) => {
   };
 
   return (
-    <div className="bg-white rounded-lg border shadow-lg max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-      <div className="p-4 border-b flex justify-between items-center">
-        <h3 className="font-medium">Edit Slide</h3>
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
+    <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogHeader className="p-4 border-b">
+        <DialogTitle>Edit Slide</DialogTitle>
+        <DialogDescription>
+          Customize the content and interactive elements for this slide
+        </DialogDescription>
+      </DialogHeader>
       
       <div className="p-4 flex-1 overflow-y-auto">
         <Tabs defaultValue={editedSlide.type} className="w-full">
@@ -132,7 +133,7 @@ const SlideEditor = ({ slide, onUpdate, onClose }: SlideEditorProps) => {
               Image
             </TabsTrigger>
             <TabsTrigger value="pdf" className="flex items-center">
-              <File className="mr-2 h-4 w-4" />
+              <FileText className="mr-2 h-4 w-4" />
               PDF
             </TabsTrigger>
             <TabsTrigger value="markdown" className="flex items-center">
