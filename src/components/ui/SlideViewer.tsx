@@ -2,9 +2,24 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import ReactMarkdown from 'react-markdown';
+
+export interface SlideContent {
+  type: 'image' | 'pdf' | 'markdown';
+  content: string;
+  multipleChoice?: {
+    question: string;
+    options: string[];
+    correctAnswer: number;
+  };
+  equation?: {
+    question: string;
+    answer: string;
+  };
+}
 
 interface SlideViewerProps {
-  slides: string[];
+  slides: SlideContent[];
   currentSlide: number;
   onSlideChange?: (slideIndex: number) => void;
   editable?: boolean;
@@ -28,7 +43,7 @@ const SlideViewer = ({
     
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 1000);
+    }, 500);
     
     return () => clearTimeout(timer);
   }, [currentSlide]);
@@ -45,11 +60,69 @@ const SlideViewer = ({
     }
   };
 
-  // Determine file type (simplified)
-  const getFileType = (url: string) => {
-    const extension = url.split('.').pop()?.toLowerCase();
-    if (extension === 'pdf') return 'pdf';
-    return 'image';
+  const renderSlideContent = (slide: SlideContent) => {
+    switch (slide.type) {
+      case 'pdf':
+        return (
+          <iframe
+            src={`${slide.content}#toolbar=0`}
+            className="w-full h-full"
+            title={`Slide ${currentSlide + 1}`}
+          />
+        );
+      case 'image':
+        return (
+          <img
+            src={slide.content}
+            alt={`Slide ${currentSlide + 1}`}
+            className="max-w-full max-h-full object-contain transition-opacity duration-300"
+            onError={() => setError("Failed to load image")}
+          />
+        );
+      case 'markdown':
+        return (
+          <div className="w-full h-full overflow-auto p-6 prose prose-sm md:prose-base lg:prose-lg dark:prose-invert max-w-none">
+            <ReactMarkdown>{slide.content}</ReactMarkdown>
+            
+            {slide.multipleChoice && (
+              <div className="mt-6 p-4 border rounded-lg bg-muted/20">
+                <h3 className="font-medium text-lg mb-3">{slide.multipleChoice.question}</h3>
+                <div className="space-y-2">
+                  {slide.multipleChoice.options.map((option, idx) => (
+                    <div key={idx} className="flex items-center space-x-2">
+                      <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full border">
+                        {idx === slide.multipleChoice?.correctAnswer && editable && (
+                          <div className="w-3 h-3 bg-primary rounded-full" />
+                        )}
+                      </div>
+                      <span>{option}</span>
+                    </div>
+                  ))}
+                </div>
+                {editable && (
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    Correct answer: Option {slide.multipleChoice.correctAnswer + 1}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {slide.equation && (
+              <div className="mt-6 p-4 border rounded-lg bg-muted/20">
+                <h3 className="font-medium text-lg mb-3">{slide.equation.question}</h3>
+                {editable && (
+                  <div className="mt-2 p-2 bg-muted rounded text-sm">
+                    <span className="font-medium">Answer Key: </span>
+                    {slide.equation.answer}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      default:
+        return <div className="text-muted-foreground">Unsupported content type</div>;
+    }
   };
 
   return (
@@ -60,7 +133,7 @@ const SlideViewer = ({
         </h3>
         {editable && (
           <div className="text-sm text-muted-foreground">
-            Click to upload or replace
+            Click to edit
           </div>
         )}
       </div>
@@ -82,22 +155,7 @@ const SlideViewer = ({
             {editable && <p className="text-sm mt-2">Upload slides to get started</p>}
           </div>
         ) : (
-          <>
-            {getFileType(slides[currentSlide]) === 'pdf' ? (
-              <iframe
-                src={`${slides[currentSlide]}#toolbar=0`}
-                className="w-full h-full"
-                title={`Slide ${currentSlide + 1}`}
-              />
-            ) : (
-              <img
-                src={slides[currentSlide]}
-                alt={`Slide ${currentSlide + 1}`}
-                className="max-w-full max-h-full object-contain transition-opacity duration-300"
-                onError={() => setError("Failed to load image")}
-              />
-            )}
-          </>
+          renderSlideContent(slides[currentSlide])
         )}
       </div>
       

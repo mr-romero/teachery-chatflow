@@ -34,7 +34,9 @@ const GoalTracker = ({ goals, students = [], mode, className }: GoalTrackerProps
               <li key={goal.id} className="flex items-start gap-3">
                 <div className={cn(
                   "mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center",
-                  goal.completed ? "bg-green-100 text-green-600" : "bg-muted text-muted-foreground"
+                  goal.completed 
+                    ? "bg-green-100 text-green-600 ring-2 ring-green-500 ring-offset-2" 
+                    : "bg-muted text-muted-foreground"
                 )}>
                   {goal.completed ? (
                     <Check size={12} />
@@ -44,7 +46,7 @@ const GoalTracker = ({ goals, students = [], mode, className }: GoalTrackerProps
                 </div>
                 <span className={cn(
                   "text-sm",
-                  goal.completed && "line-through text-muted-foreground"
+                  goal.completed && "font-medium text-green-700"
                 )}>
                   {goal.description}
                 </span>
@@ -93,8 +95,10 @@ const GoalTracker = ({ goals, students = [], mode, className }: GoalTrackerProps
                       <td key={`${student.id}-${goal.id}`} className="p-2 text-center">
                         <div className="flex justify-center">
                           <div className={cn(
-                            "w-6 h-6 rounded-full flex items-center justify-center",
-                            isCompleted ? "bg-green-100 text-green-600" : "bg-muted text-muted-foreground"
+                            "w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300",
+                            isCompleted 
+                              ? "bg-green-100 text-green-600 ring-2 ring-green-500 ring-offset-2 scale-110" 
+                              : "bg-muted text-muted-foreground"
                           )}>
                             {isCompleted ? (
                               <Check size={14} />
