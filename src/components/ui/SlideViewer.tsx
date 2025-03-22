@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
+import { RefreshCw } from 'lucide-react';
 
 export interface SlideContent {
   type: 'image' | 'pdf' | 'markdown';
@@ -35,8 +36,9 @@ const SlideViewer = ({
 }: SlideViewerProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
-  // Simulate loading
+  // Reset loading state and error when slide changes
   useEffect(() => {
     setIsLoading(true);
     setError(null);
@@ -46,7 +48,7 @@ const SlideViewer = ({
     }, 500);
     
     return () => clearTimeout(timer);
-  }, [currentSlide]);
+  }, [currentSlide, retryCount]);
 
   const handlePrevSlide = () => {
     if (currentSlide > 0 && onSlideChange) {
@@ -60,6 +62,12 @@ const SlideViewer = ({
     }
   };
 
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1);
+    setError(null);
+    setIsLoading(true);
+  };
+
   const renderSlideContent = (slide: SlideContent) => {
     switch (slide.type) {
       case 'pdf':
@@ -68,16 +76,19 @@ const SlideViewer = ({
             src={`${slide.content}#toolbar=0`}
             className="w-full h-full"
             title={`Slide ${currentSlide + 1}`}
+            onError={() => setError("Failed to load PDF")}
           />
         );
       case 'image':
         return (
-          <img
-            src={slide.content}
-            alt={`Slide ${currentSlide + 1}`}
-            className="max-w-full max-h-full object-contain transition-opacity duration-300"
-            onError={() => setError("Failed to load image")}
-          />
+          <div className="relative w-full h-full flex items-center justify-center">
+            <img
+              src={slide.content}
+              alt={`Slide ${currentSlide + 1}`}
+              className="max-w-full max-h-full object-contain transition-opacity duration-300"
+              onError={() => setError("Failed to load image")}
+            />
+          </div>
         );
       case 'markdown':
         return (
@@ -145,9 +156,16 @@ const SlideViewer = ({
             <div className="text-sm text-muted-foreground">Loading slide...</div>
           </div>
         ) : error ? (
-          <div className="text-center p-4 text-destructive">
-            <p>Error loading slide:</p>
-            <p className="text-sm">{error}</p>
+          <div className="text-center p-4">
+            <div className="text-destructive mb-4">{error}</div>
+            <Button 
+              variant="outline" 
+              onClick={handleRetry}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry Loading
+            </Button>
           </div>
         ) : slides.length === 0 ? (
           <div className="text-center p-4 text-muted-foreground">

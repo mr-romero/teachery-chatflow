@@ -7,15 +7,15 @@ import GoalTracker from '@/components/ui/GoalTracker';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
-// More realistic demo slides that match the teacher view
+// More reliable demo slides with placeholder images
 const demoSlides: SlideContent[] = [
   {
     type: 'image',
-    content: 'https://images.unsplash.com/photo-1589756842055-e4a8d757e238?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80'
+    content: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80'
   },
   {
     type: 'image',
-    content: 'https://images.unsplash.com/photo-1562654306-973b5cfe0c86?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80'
+    content: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=1200&q=80'
   },
   {
     type: 'markdown',
