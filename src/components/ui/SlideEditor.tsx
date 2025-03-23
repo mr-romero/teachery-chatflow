@@ -9,7 +9,7 @@ import { EquationEditor } from './equation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './dialog';
 import { Slide, Goal, MultipleChoice, Equation } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
-import { Image as ImageIcon, Plus, X, Upload, AlignLeft } from 'lucide-react';
+import { Image as ImageIcon, Plus, X, Upload, AlignLeft, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadImage } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -23,13 +23,7 @@ interface SlideEditorProps {
 
 export function SlideEditor({ slide, onUpdate, onClose, availableGoals }: SlideEditorProps) {
   const [title, setTitle] = useState(slide.title || '');
-  const [currentQuestion, setCurrentQuestion] = useState<MultipleChoice>({
-    id: Math.random().toString(36).substr(2, 9),
-    question: '',
-    choices: [],
-    type: 'basic',
-    explanation: ''
-  });
+  const [editingQuestion, setEditingQuestion] = useState<MultipleChoice | null>(null);
   const [showQuizDialog, setShowQuizDialog] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -80,13 +74,16 @@ export function SlideEditor({ slide, onUpdate, onClose, availableGoals }: SlideE
   };
 
   const handleAddQuestion = (type: 'quiz' | 'image-quiz') => {
-    const question: MultipleChoice = {
+    const newQuestion: MultipleChoice = {
       id: Math.random().toString(36).substr(2, 9),
       question: '',
       choices: [],
       type: 'basic',
       explanation: ''
     };
+
+    setEditingQuestion(newQuestion);
+    setShowQuizDialog(true);
 
     if (type === 'quiz') {
       onUpdate({
@@ -96,54 +93,40 @@ export function SlideEditor({ slide, onUpdate, onClose, availableGoals }: SlideE
           content: {
             questions: [
               ...(slide.content.type === 'quiz' ? slide.content.content.questions : []),
-              question
+              newQuestion
             ]
           }
         }
       });
-    } else if (type === 'image-quiz' && slide.content.type === 'image') {
+    }
+  };
+
+  const handleDeleteQuestion = (questionId: string) => {
+    if (slide.content.type === 'quiz') {
+      // Remove question from quiz slide
+      onUpdate({
+        ...slide,
+        content: {
+          type: 'quiz',
+          content: {
+            questions: slide.content.content.questions.filter(q => q.id !== questionId)
+          }
+        }
+      });
+    } else if (slide.content.type === 'image') {
+      // Remove question from image slide
       onUpdate({
         ...slide,
         content: {
           type: 'image',
           content: {
             ...slide.content.content,
-            questions: [
-              ...(slide.content.content.questions || []),
-              question
-            ]
+            questions: (slide.content.content.questions || []).filter(q => q.id !== questionId)
           }
         }
       });
     }
-    setCurrentQuestion(question);
-    setShowQuizDialog(true);
-  };
-
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setUploading(true);
-      const url = await uploadImage(file);
-      onUpdate({
-        ...slide,
-        content: {
-          type: 'image',
-          content: {
-            url,
-            questions: []
-          }
-        }
-      });
-      toast.success('Image uploaded successfully');
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload image');
-    } finally {
-      setUploading(false);
-    }
+    setShowQuizDialog(false);
   };
 
   const handleQuestionUpdate = (updatedQuestion: MultipleChoice) => {
@@ -161,20 +144,62 @@ export function SlideEditor({ slide, onUpdate, onClose, availableGoals }: SlideE
       });
     } else if (slide.content.type === 'image') {
       // Update image questions
-      const questions = (slide.content.content.questions || []).map(q =>
-        q.id === updatedQuestion.id ? updatedQuestion : q
-      );
+      const existingQuestions = slide.content.content.questions || [];
+      const questionIndex = existingQuestions.findIndex(q => q.id === updatedQuestion.id);
+      
+      let newQuestions;
+      if (questionIndex === -1) {
+        // Add new question
+        newQuestions = [...existingQuestions, updatedQuestion];
+      } else {
+        // Update existing question
+        newQuestions = existingQuestions.map(q =>
+          q.id === updatedQuestion.id ? updatedQuestion : q
+        );
+      }
+
       onUpdate({
         ...slide,
         content: {
           type: 'image',
           content: {
             ...slide.content.content,
-            questions
+            questions: newQuestions
           }
         }
       });
     }
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      const url = await uploadImage(file);
+      onUpdate({
+        ...slide,
+        content: {
+          type: 'image',
+          content: {
+            url,
+            questions: slide.content.type === 'image' ? slide.content.content.questions || [] : []
+          }
+        }
+      });
+      toast.success('Image uploaded successfully');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleEditQuestion = (question: MultipleChoice) => {
+    setEditingQuestion(question);
+    setShowQuizDialog(true);
   };
 
   return (
@@ -289,6 +314,39 @@ export function SlideEditor({ slide, onUpdate, onClose, availableGoals }: SlideE
                 </div>
               </label>
             )}
+
+            {/* Image Questions List */}
+            {slide.content.content.questions && slide.content.content.questions.length > 0 && (
+              <Card className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium">Questions</h3>
+                </div>
+                {slide.content.content.questions.map((question, index) => (
+                  <div key={question.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="font-medium">Question {index + 1}</h4>
+                      <p className="text-sm text-muted-foreground">{question.question || 'No question text'}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditQuestion(question)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteQuestion(question.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </Card>
+            )}
           </div>
         )}
 
@@ -301,9 +359,27 @@ export function SlideEditor({ slide, onUpdate, onClose, availableGoals }: SlideE
               </Button>
             </div>
             {slide.content.content.questions.map((question, index) => (
-              <div key={question.id} className="bg-muted/20 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Question {index + 1}</h4>
-                <p className="text-sm mb-4">{question.question}</p>
+              <div key={question.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
+                <div className="flex-1">
+                  <h4 className="font-medium">Question {index + 1}</h4>
+                  <p className="text-sm text-muted-foreground">{question.question}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEditQuestion(question)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDeleteQuestion(question.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </Card>
@@ -339,20 +415,31 @@ export function SlideEditor({ slide, onUpdate, onClose, availableGoals }: SlideE
         )}
 
         {/* Quiz Question Dialog */}
-        {showQuizDialog && (
+        {showQuizDialog && editingQuestion && (
           <Dialog open={showQuizDialog} onOpenChange={setShowQuizDialog}>
-            <DialogContent>
+            <DialogContent className="max-w-3xl">
               <DialogHeader>
-                <DialogTitle>Add Question</DialogTitle>
+                <DialogTitle>{editingQuestion.id ? 'Edit Question' : 'Add Question'}</DialogTitle>
                 <DialogDescription>
-                  Create a new question and set the correct answer.
+                  Create or modify your question and set the correct answer.
                 </DialogDescription>
               </DialogHeader>
               <MultipleChoiceEditor
-                question={currentQuestion}
+                question={editingQuestion}
                 onChange={handleQuestionUpdate}
-                onDelete={() => setShowQuizDialog(false)}
+                onDelete={() => {
+                  handleDeleteQuestion(editingQuestion.id);
+                  setShowQuizDialog(false);
+                }}
               />
+              <div className="flex justify-end gap-2 mt-4">
+                <Button variant="outline" onClick={() => setShowQuizDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => setShowQuizDialog(false)}>
+                  Save Question
+                </Button>
+              </div>
             </DialogContent>
           </Dialog>
         )}
