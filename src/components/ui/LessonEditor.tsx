@@ -112,6 +112,14 @@ export function LessonEditor({
     setIsEditing(true);
   };
 
+  const handleReorderSlides = (reorderedSlides: Slide[]) => {
+    setLesson(prev => ({
+      ...prev,
+      slides: reorderedSlides
+    }));
+    setIsEditing(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -160,6 +168,7 @@ export function LessonEditor({
         slides={lesson.slides}
         currentSlideIndex={currentSlideIndex}
         onSelect={setCurrentSlideIndex}
+        onReorder={handleReorderSlides}
         className="mb-6"
       />
 

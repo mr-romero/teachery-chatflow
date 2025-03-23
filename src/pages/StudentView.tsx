@@ -8,6 +8,8 @@ import { Lesson, StudentSession } from '@/types';
 import { toast } from 'sonner';
 import { lessonStore } from '@/lib/stores/lessonStore';
 import { studentStore } from '@/lib/stores/studentStore';
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
+import { cn } from '@/lib/utils';
 
 const StudentView = () => {
   const [currentLesson, setCurrentLesson] = React.useState<Lesson | null>(null);
@@ -128,6 +130,17 @@ const StudentView = () => {
     }
   }, [session]);
 
+  const currentSlideHasChatEnabled = React.useMemo(() => {
+    if (!currentLesson || currentSlide === undefined || currentSlide < 0 || 
+        currentLesson.slides.length <= currentSlide) {
+      return true; // Default to true if we can't determine
+    }
+    
+    const currentSlideData = currentLesson.slides[currentSlide];
+    // Only hide if explicitly set to false
+    return currentSlideData.chatbotEnabled !== false;
+  }, [currentLesson, currentSlide]);
+
   return (
     <MainLayout>
       {!isJoined ? (
@@ -169,20 +182,45 @@ const StudentView = () => {
               </div>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-6 flex-1 p-6">
-            <SlideViewer
-              slides={currentLesson?.slides || []}
-              currentSlide={currentSlide}
-              onSlideChange={() => {}}
-              editable={false}
-              className="h-full"
-            />
-            <ChatInterface
-              goals={currentLesson?.slides[currentSlide]?.goals || []}
-              isPaused={currentLesson?.isPaused || false}
-              onGoalComplete={handleGoalComplete}
-              systemPrompt={currentLesson?.systemPrompt}
-            />
+          
+          {/* Grid layout for better space utilization */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 p-6">
+            {/* Make the slide viewer take full height but remove enlargement */}
+            <div className={cn(
+              "h-full", 
+              !currentSlideHasChatEnabled && "lg:col-span-2" // Take full width when AI is disabled
+            )}>
+              <SlideViewer
+                slides={currentLesson?.slides || []}
+                currentSlide={currentSlide}
+                onSlideChange={() => {}}
+                editable={false}
+                className="h-full"
+                canEnlarge={false} // Disable enlargement
+                onAnswerSubmit={(questionId, response) => {
+                  if (session) {
+                    studentStore.addResponse(session.studentId, questionId, response);
+                  }
+                }}
+                studentResponses={session?.responses || {}}
+              />
+            </div>
+            
+            {/* Only show chatbot if enabled for this slide */}
+            {currentSlideHasChatEnabled ? (
+              <CollapsibleSection 
+                title="AI Assistant" 
+                defaultOpen={false}
+                className="h-full flex flex-col"
+              >
+                <ChatInterface
+                  goals={currentLesson?.slides[currentSlide]?.goals || []}
+                  isPaused={currentLesson?.isPaused || false}
+                  onGoalComplete={handleGoalComplete}
+                  systemPrompt={currentLesson?.systemPrompt}
+                />
+              </CollapsibleSection>
+            ) : null}
           </div>
         </div>
       )}

@@ -65,6 +65,7 @@ export type Slide = {
   title?: string;
   content: SlideContent;
   goals: Goal[];
+  chatbotEnabled?: boolean; // Make sure this property exists
 };
 
 export type Lesson = {
@@ -84,6 +85,7 @@ export type StudentResponse = {
   feedback?: string;
   latexAnswer?: string; // For mathematical responses
   selectedChoice?: string; // For multiple choice responses (stores the choice label)
+  studentId?: string; // Added for analytics
 };
 
 export type StudentSession = {

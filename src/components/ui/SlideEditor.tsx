@@ -13,6 +13,7 @@ import { Image as ImageIcon, Plus, X, Upload, AlignLeft, Trash2 } from 'lucide-r
 import { toast } from 'sonner';
 import { uploadImage } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { Switch } from './switch';
 
 interface SlideEditorProps {
   slide: Slide;
@@ -171,28 +172,50 @@ export function SlideEditor({ slide, onUpdate, onClose, availableGoals }: SlideE
     }
   };
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       setUploading(true);
-      const url = await uploadImage(file);
-      onUpdate({
-        ...slide,
-        content: {
-          type: 'image',
+      const file = e.target.files?.[0];
+      if (!file) return;
+      
+      // Check file size (limit to 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image file is too large. Please use an image under 5MB.");
+        setUploading(false);
+        return;
+      }
+      
+      // Convert to Base64 to display immediately
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        const updatedContent = { 
+          ...slide.content.content as ImageContent,
+          url: base64data
+        };
+        
+        onUpdate({
+          ...slide,
           content: {
-            url,
-            questions: slide.content.type === 'image' ? slide.content.content.questions || [] : []
+            ...slide.content,
+            content: updatedContent
           }
-        }
-      });
-      toast.success('Image uploaded successfully');
+        });
+        
+        setUploading(false);
+        toast.success("Image uploaded successfully");
+      };
+      
+      reader.onerror = () => {
+        console.error("Error reading file");
+        toast.error("Failed to read the image file");
+        setUploading(false);
+      };
+      
+      reader.readAsDataURL(file);
     } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload image');
-    } finally {
+      console.error("Image upload error:", error);
+      toast.error("Failed to upload image");
       setUploading(false);
     }
   };
@@ -205,16 +228,29 @@ export function SlideEditor({ slide, onUpdate, onClose, availableGoals }: SlideE
   return (
     <div className="space-y-6">
       {/* Basic info */}
-      <div>
-        <Label>Slide Title</Label>
-        <Input
-          value={title}
-          onChange={(e) => {
-            setTitle(e.target.value);
-            onUpdate({ ...slide, title: e.target.value });
-          }}
-          placeholder="Enter slide title..."
-        />
+      <div className="space-y-4">
+        <div>
+          <Label>Slide Title</Label>
+          <Input
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              onUpdate({ ...slide, title: e.target.value });
+            }}
+            placeholder="Enter slide title..."
+          />
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <Label htmlFor="enable-chatbot">Enable AI Chatbot for this slide</Label>
+          <Switch
+            id="enable-chatbot"
+            checked={slide.chatbotEnabled !== false}
+            onCheckedChange={(checked) => {
+              onUpdate({ ...slide, chatbotEnabled: checked });
+            }}
+          />
+        </div>
       </div>
 
       {/* Content editing area */}

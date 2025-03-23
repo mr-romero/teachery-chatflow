@@ -125,68 +125,70 @@ export function ChatInterface({
   };
 
   return (
-    <div 
-      className={cn(
-        "flex flex-col h-full rounded-lg border bg-white",
-        isPaused && "opacity-50"
-      )}
-      aria-live="polite"
-    >
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message, index) => (
-          <div 
-            key={`${message.timestamp}-${index}`}
-            className={cn(
-              "flex flex-col space-y-2 p-4 rounded-lg",
-              message.role === 'assistant' 
-                ? "bg-primary/5 mr-12" 
-                : "bg-muted/20 ml-12"
-            )}
-          >
-            <div className="text-xs font-medium text-muted-foreground">
-              {message.role === 'assistant' ? 'Teaching Assistant' : 'You'}
-            </div>
-            <div className="text-sm whitespace-pre-wrap">{message.content}</div>
-            <div className="text-[10px] text-muted-foreground">
-              {new Date(message.timestamp).toLocaleTimeString()}
-            </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="flex items-center justify-center space-x-2 p-4">
-            <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
-            <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
-            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
-          </div>
+    <div className="flex flex-col h-full">
+      <div 
+        className={cn(
+          "flex flex-col h-full rounded-lg border bg-white",
+          isPaused && "opacity-50"
         )}
-        <div ref={chatEndRef} />
-      </div>
+        aria-live="polite"
+      >
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.map((message, index) => (
+            <div 
+              key={`${message.timestamp}-${index}`}
+              className={cn(
+                "flex flex-col space-y-2 p-4 rounded-lg",
+                message.role === 'assistant' 
+                  ? "bg-primary/5 mr-12" 
+                  : "bg-muted/20 ml-12"
+              )}
+            >
+              <div className="text-xs font-medium text-muted-foreground">
+                {message.role === 'assistant' ? 'Teaching Assistant' : 'You'}
+              </div>
+              <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {new Date(message.timestamp).toLocaleTimeString()}
+              </div>
+            </div>
+          ))}
+          {isLoading && (
+            <div className="flex items-center justify-center space-x-2 p-4">
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
 
-      <div className="p-4 border-t">
-        <form 
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSendMessage();
-          }}
-          className="flex gap-2"
-        >
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={isPaused ? "Chat is paused..." : "Ask a question..."}
-            disabled={isPaused || isLoading}
-            className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
-            aria-label="Chat input"
-          />
-          <Button 
-            type="submit" 
-            disabled={!input.trim() || isPaused || isLoading}
-            aria-label="Send message"
+        <div className="p-4 border-t">
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSendMessage();
+            }}
+            className="flex gap-2"
           >
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={isPaused ? "Chat is paused..." : "Ask a question..."}
+              disabled={isPaused || isLoading}
+              className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+              aria-label="Chat input"
+            />
+            <Button 
+              type="submit" 
+              disabled={!input.trim() || isPaused || isLoading}
+              aria-label="Send message"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );
