@@ -18,39 +18,52 @@ const StudentView = () => {
   const [isJoined, setIsJoined] = React.useState(false);
   const [studentName, setStudentName] = React.useState('');
   const [session, setSession] = React.useState<StudentSession | null>(null);
+  const [isLoading, setIsLoading] = React.useState(false);
 
   // Check for existing session
   React.useEffect(() => {
     // Get student ID from local storage
-    const savedStudentId = localStorage.getItem('teachery_current_student');
-    if (savedStudentId) {
-      const savedSession = studentStore.getSession(savedStudentId);
-      if (savedSession) {
-        const lesson = lessonStore.getLessonById(savedSession.lessonId);
-        if (lesson) {
-          setSession(savedSession);
-          setStudentName(savedSession.studentName);
-          setCurrentLesson(lesson);
-          setCurrentSlide(savedSession.currentSlide);
-          setIsJoined(true);
-          toast.success(`Welcome back, ${savedSession.studentName}!`);
+    const restoreSession = async () => {
+      const savedStudentId = localStorage.getItem('teachery_current_student');
+      if (savedStudentId) {
+        setIsLoading(true);
+        try {
+          const savedSession = await studentStore.getSession(savedStudentId);
+          if (savedSession) {
+            const lesson = await lessonStore.getLessonById(savedSession.lessonId);
+            if (lesson) {
+              setSession(savedSession);
+              setStudentName(savedSession.studentName);
+              setCurrentLesson(lesson);
+              setCurrentSlide(savedSession.currentSlide);
+              setIsJoined(true);
+              toast.success(`Welcome back, ${savedSession.studentName}!`);
+            }
+          }
+        } catch (error) {
+          console.error("Error restoring session:", error);
+          toast.error("Couldn't restore your previous session");
+        } finally {
+          setIsLoading(false);
         }
       }
-    }
+    };
+    
+    restoreSession();
   }, []);
 
   // Keep session alive and sync with teacher
   React.useEffect(() => {
     if (isJoined && session && currentLesson) {
-      const updateInterval = setInterval(() => {
+      const updateInterval = setInterval(async () => {
         // Update last active timestamp
-        studentStore.updateSession(session.studentId, {
+        await studentStore.updateSession(session.studentId, {
           lastActive: Date.now(),
           currentSlide
         });
 
         // Check for lesson updates
-        const updatedLesson = lessonStore.getLessonById(currentLesson.id);
+        const updatedLesson = await lessonStore.getLessonById(currentLesson.id);
         if (updatedLesson) {
           setCurrentLesson(updatedLesson);
           
@@ -79,21 +92,22 @@ const StudentView = () => {
       return;
     }
 
+    setIsLoading(true);
     try {
-      const lesson = lessonStore.getLessonByAccessCode(accessCode.trim().toUpperCase());
+      const lesson = await lessonStore.getLessonByAccessCode(accessCode.trim().toUpperCase());
       
       if (!lesson) {
         toast.error('Invalid class code. Please check and try again.');
+        setIsLoading(false);
         return;
       }
 
       // Create new student session
-      const newSession = studentStore.createSession(studentName, lesson.id);
+      const newSession = await studentStore.createSession(studentName, lesson.id);
       setSession(newSession);
       
       // Save student ID for reconnection
       localStorage.setItem('teachery_current_student', newSession.studentId);
-
       setCurrentLesson(lesson);
 
       // Set initial slide from teacher's position
@@ -101,7 +115,7 @@ const StudentView = () => {
       if (savedSlide) {
         const initialSlide = parseInt(savedSlide, 10);
         setCurrentSlide(initialSlide);
-        studentStore.updateSession(newSession.studentId, { currentSlide: initialSlide });
+        await studentStore.updateSession(newSession.studentId, { currentSlide: initialSlide });
       }
 
       setIsJoined(true);
@@ -109,12 +123,14 @@ const StudentView = () => {
     } catch (error) {
       console.error('Join error:', error);
       toast.error('Failed to join the lesson. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleEndLesson = () => {
+  const handleEndLesson = async () => {
     if (session) {
-      studentStore.endSession(session.studentId);
+      await studentStore.endSession(session.studentId);
       localStorage.removeItem('teachery_current_student');
     }
     setSession(null);
@@ -123,9 +139,9 @@ const StudentView = () => {
     setCurrentSlide(0);
   };
 
-  const handleGoalComplete = React.useCallback((goalId: string) => {
+  const handleGoalComplete = React.useCallback(async (goalId: string) => {
     if (session) {
-      studentStore.addCompletedGoal(session.studentId, goalId);
+      await studentStore.addCompletedGoal(session.studentId, goalId);
       toast.success('Goal completed! Your progress has been saved.');
     }
   }, [session]);
@@ -162,9 +178,9 @@ const StudentView = () => {
               <Button 
                 onClick={joinLesson} 
                 className="w-full"
-                disabled={!accessCode.trim() || !studentName.trim()}
+                disabled={!accessCode.trim() || !studentName.trim() || isLoading}
               >
-                Join
+                {isLoading ? 'Joining...' : 'Join'}
               </Button>
             </div>
           </div>

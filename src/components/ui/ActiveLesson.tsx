@@ -27,34 +27,51 @@ export function ActiveLesson({
   const [students, setStudents] = React.useState<StudentSession[]>([]);
   const lastUpdateRef = React.useRef<number>(Date.now());
   
+  // Ensure the lesson has required properties to prevent errors
+  const safeLesson = React.useMemo(() => {
+    return {
+      ...lesson,
+      slides: lesson.slides || [],
+      goals: lesson.goals || []
+    };
+  }, [lesson]);
+  
   // Track active students using studentStore
   React.useEffect(() => {
-    const checkStudents = () => {
-      const activeStudents = studentStore.getActiveStudents(lesson.id);
-      setStudents(activeStudents);
+    const checkStudents = async () => {
+      try {
+        const activeStudents = await studentStore.getActiveStudents(safeLesson.id);
+        // Ensure we always have an array, even if the API call fails
+        setStudents(Array.isArray(activeStudents) ? activeStudents : []);
+      } catch (error) {
+        console.error('Error fetching students:', error);
+        setStudents([]);
+      }
     };
-
+    
     checkStudents(); // Initial check
     const interval = setInterval(checkStudents, 1000);
     return () => clearInterval(interval);
-  }, [lesson.id]);
+  }, [safeLesson.id]);
 
   // Save current slide to sync with students
   React.useEffect(() => {
     try {
-      localStorage.setItem(`teachery_lesson_${lesson.id}_slide`, currentSlide.toString());
+      localStorage.setItem(`teachery_lesson_${safeLesson.id}_slide`, currentSlide.toString());
       
-      // Update all active student sessions with new slide
-      students.forEach(student => {
-        studentStore.updateSession(student.studentId, {
-          currentSlide,
-          lastActive: Date.now()
+      // Ensure students is an array before mapping
+      if (Array.isArray(students)) {
+        students.forEach(student => {
+          studentStore.updateSession(student.studentId, {
+            currentSlide,
+            lastActive: Date.now()
+          });
         });
-      });
+      }
     } catch (error) {
       console.error('Error syncing slide:', error);
     }
-  }, [currentSlide, lesson.id, students]);
+  }, [currentSlide, safeLesson.id, students]);
 
   // Debounced lesson state save
   const handleLessonUpdate = React.useCallback((updatedLesson: StoredLesson) => {
@@ -76,7 +93,8 @@ export function ActiveLesson({
   };
 
   const handleNextSlide = () => {
-    if (currentSlide < lesson.slides.length - 1) {
+    const slideCount = safeLesson.slides.length;
+    if (currentSlide < slideCount - 1) {
       setCurrentSlide(currentSlide + 1);
     }
   };
@@ -102,20 +120,25 @@ export function ActiveLesson({
         handleNextSlide();
       }
     };
-
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [currentSlide]);
+
+  // Ensure students is always an array before rendering
+  const safeStudents = Array.isArray(students) ? students : [];
+
+  // Calculate safe values for rendering
+  const slideCount = safeLesson.slides.length || 0;
 
   return (
     <div className="h-full flex flex-col space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <h2 className="text-xl font-semibold">{lesson.title}</h2>
+          <h2 className="text-xl font-semibold">{safeLesson.title}</h2>
           <div className="bg-muted/30 px-3 py-1 rounded-md">
             <span className="text-sm font-medium mr-2">Class Code:</span>
-            <span className="font-mono text-primary">{lesson.accessCode}</span>
+            <span className="font-mono text-primary">{safeLesson.accessCode}</span>
           </div>
         </div>
         <div className="flex gap-4">
@@ -124,10 +147,10 @@ export function ActiveLesson({
             onClick={togglePaused}
             className={cn(
               "transition-colors",
-              lesson.isPaused && "text-yellow-600 border-yellow-600"
+              safeLesson.isPaused && "text-yellow-600 border-yellow-600"
             )}
           >
-            {lesson.isPaused ? (
+            {safeLesson.isPaused ? (
               <><Play className="mr-2 h-4 w-4" /> Resume Chats</>
             ) : (
               <><Pause className="mr-2 h-4 w-4" /> Pause Chats</>
@@ -147,7 +170,7 @@ export function ActiveLesson({
         <div className="lg:col-span-2 flex flex-col space-y-6">
           <div className="flex-1 relative">
             <SlideViewer 
-              slides={lesson.slides} 
+              slides={safeLesson.slides} 
               currentSlide={currentSlide}
               onSlideChange={setCurrentSlide}
               editable={false}
@@ -166,12 +189,12 @@ export function ActiveLesson({
               Previous Slide
             </Button>
             <span className="text-sm text-muted-foreground">
-              {currentSlide + 1} of {lesson.slides.length}
+              {currentSlide + 1} of {slideCount}
             </span>
             <Button
               variant="outline"
               onClick={handleNextSlide}
-              disabled={currentSlide === lesson.slides.length - 1}
+              disabled={currentSlide >= slideCount - 1}
             >
               Next Slide
               <ChevronRight className="h-4 w-4 ml-2" />
@@ -184,11 +207,11 @@ export function ActiveLesson({
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-medium">Students Online</h3>
               <span className="text-sm text-muted-foreground">
-                {students.length} active
+                {safeStudents.length} active
               </span>
             </div>
             <div className="space-y-2">
-              {students.map((student) => (
+              {safeStudents.map((student) => (
                 <div 
                   key={student.studentId} 
                   className="flex items-center justify-between bg-muted/20 p-2 rounded"
@@ -199,11 +222,11 @@ export function ActiveLesson({
                   </div>
                 </div>
               ))}
-              {students.length === 0 && (
+              {safeStudents.length === 0 && (
                 <div className="text-center text-muted-foreground py-8">
                   No students connected yet.
                   <div className="text-sm mt-1">
-                    Share the class code: <span className="font-mono font-bold">{lesson.accessCode}</span>
+                    Share the class code: <span className="font-mono font-bold">{safeLesson.accessCode}</span>
                   </div>
                 </div>
               )}
@@ -213,8 +236,8 @@ export function ActiveLesson({
           <div className="bg-white rounded-lg border p-4">
             <h3 className="font-medium mb-3">Learning Goals Progress</h3>
             <GoalTracker 
-              goals={lesson.goals}
-              students={students.map(student => ({
+              goals={safeLesson.goals}
+              students={safeStudents.map(student => ({
                 id: student.studentId,
                 name: student.studentName,
                 completedGoals: student.completedGoals || []

@@ -32,24 +32,36 @@ const TeacherDashboard = () => {
   const [lessons, setLessons] = React.useState<StoredLesson[]>([]);
   const [showNewLesson, setShowNewLesson] = React.useState(false);
   const [activeLesson, setActiveLesson] = React.useState<StoredLesson | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
 
   // Load lessons on mount
   React.useEffect(() => {
-    const storedLessons = lessonStore.getAllLessons();
-    setLessons(storedLessons);
+    const loadLessons = async () => {
+      setIsLoading(true);
+      try {
+        const storedLessons = await lessonStore.getAllLessons();
+        setLessons(storedLessons);
+        
+        // Check for active lesson
+        const active = await lessonStore.getActiveLesson();
+        if (active) {
+          setActiveLesson(active);
+          setMode('teach'); // Resume teaching if there was an active lesson
+        }
+        // Clean up any stale student sessions
+        studentStore.cleanupStaleSessions();
+      } catch (error) {
+        console.error("Error loading lessons:", error);
+        toast.error("Failed to load lessons");
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
-    // Check for active lesson
-    const active = lessonStore.getActiveLesson();
-    if (active) {
-      setActiveLesson(active);
-      setMode('teach'); // Resume teaching if there was an active lesson
-    }
-
-    // Clean up any stale student sessions
-    studentStore.cleanupStaleSessions();
+    loadLessons();
   }, []);
 
-  const handleCreateNewLesson = () => {
+  const handleCreateNewLesson = async () => {
     const newLesson: StoredLesson = {
       id: Math.random().toString(36).substr(2, 9),
       title: 'New Lesson',
@@ -64,13 +76,18 @@ const TeacherDashboard = () => {
       isPaused: false,
       createdAt: Date.now()
     };
-
-    lessonStore.saveLesson(newLesson);
-    setLessons(prev => [...prev, newLesson]);
-    setActiveLesson(newLesson);
-    setMode('edit');
-    setShowNewLesson(false);
-    toast.success('New lesson created');
+    
+    try {
+      await lessonStore.saveLesson(newLesson);
+      setLessons(prev => [...prev, newLesson]);
+      setActiveLesson(newLesson);
+      setMode('edit');
+      setShowNewLesson(false);
+      toast.success('New lesson created');
+    } catch (error) {
+      console.error("Error creating lesson:", error);
+      toast.error("Failed to create new lesson");
+    }
   };
 
   const handleEditLesson = (lesson: StoredLesson) => {
@@ -78,64 +95,94 @@ const TeacherDashboard = () => {
     setMode('edit');
   };
 
-  const handleStartTeaching = (lesson: StoredLesson) => {
+  const handleStartTeaching = async (lesson: StoredLesson) => {
     // Check if there's already an active lesson
-    const currentActive = lessonStore.getActiveLesson();
+    const currentActive = await lessonStore.getActiveLesson();
     if (currentActive && currentActive.id !== lesson.id) {
       toast.error('Please end the current active lesson first');
       return;
     }
-
-    setActiveLesson(lesson);
-    lessonStore.setActiveLesson(lesson.id);
-    setMode('teach');
-    toast.success('Lesson started - Share the class code with your students');
-  };
-
-  const handleSaveLesson = (updatedLesson: StoredLesson) => {
-    lessonStore.saveLesson(updatedLesson);
-    setLessons(prev => 
-      prev.map(lesson => 
-        lesson.id === updatedLesson.id ? updatedLesson : lesson
-      )
-    );
-    setActiveLesson(updatedLesson);
-    toast.success('Lesson saved successfully');
-  };
-
-  const handleEndTeaching = () => {
-    if (activeLesson) {
-      // Get active students for notification
-      const activeStudents = studentStore.getActiveStudents(activeLesson.id);
-      
-      // Clear active lesson status
-      lessonStore.setActiveLesson(null);
-      
-      // Save lesson state with isPaused reset
-      handleSaveLesson({
-        ...activeLesson,
-        isPaused: false
-      });
-      
-      // Notify about disconnected students
-      if (activeStudents.length > 0) {
-        toast.info(`Notified ${activeStudents.length} students that the lesson has ended`);
-      }
-    }
     
-    setMode('list');
-    setActiveLesson(null);
+    try {
+      await lessonStore.setActiveLesson(lesson.id);
+      setActiveLesson(lesson);
+      setMode('teach');
+      toast.success('Lesson started - Share the class code with your students');
+    } catch (error) {
+      console.error("Error starting lesson:", error);
+      toast.error("Failed to start teaching");
+    }
   };
 
-  const handleDeleteLesson = (lessonId: string) => {
-    if (activeLesson?.id === lessonId) {
-      toast.error('Cannot delete an active lesson');
-      return;
+  const handleSaveLesson = async (updatedLesson: StoredLesson) => {
+    try {
+      await lessonStore.saveLesson(updatedLesson);
+      setLessons(prev => 
+        prev.map(lesson => 
+          lesson.id === updatedLesson.id ? updatedLesson : lesson
+        )
+      );
+      setActiveLesson(updatedLesson);
+      toast.success('Lesson saved successfully');
+    } catch (error) {
+      console.error("Error saving lesson:", error);
+      toast.error("Failed to save lesson");
     }
+  };
 
-    lessonStore.deleteLesson(lessonId);
-    setLessons(prev => prev.filter(lesson => lesson.id !== lessonId));
-    toast.success('Lesson deleted');
+  const handleEndTeaching = async () => {
+    if (activeLesson) {
+      try {
+        // Get active students for notification
+        const activeStudents = await studentStore.getActiveStudents(activeLesson.id);
+        
+        // Clear active lesson status
+        await lessonStore.setActiveLesson(null);
+        
+        // Save lesson state with isPaused reset
+        await handleSaveLesson({
+          ...activeLesson,
+          isPaused: false
+        });
+        
+        // Notify about disconnected students
+        if (activeStudents.length > 0) {
+          toast.info(`Notified ${activeStudents.length} students that the lesson has ended`);
+        }
+        
+        setMode('list');
+        setActiveLesson(null);
+      } catch (error) {
+        console.error("Error ending teaching:", error);
+        toast.error("Failed to end teaching session");
+      }
+    } else {
+      setMode('list');
+      setActiveLesson(null);
+    }
+  };
+
+  const handleDeleteLesson = async (lessonId: string) => {
+    try {
+      // First, check if this is the active lesson
+      const active = await lessonStore.getActiveLesson();
+      
+      // If this is the active lesson, first end the teaching session
+      if (active?.id === lessonId) {
+        // Force clear the active lesson status
+        await lessonStore.setActiveLesson(null);
+        localStorage.removeItem('teachery_active_lesson');
+        toast.info('Active lesson has been ended');
+      }
+      
+      // Now delete the lesson
+      await lessonStore.deleteLesson(lessonId);
+      setLessons(prev => prev.filter(lesson => lesson.id !== lessonId));
+      toast.success('Lesson deleted');
+    } catch (error) {
+      console.error("Error deleting lesson:", error);
+      toast.error("Failed to delete lesson");
+    }
   };
 
   const renderContent = () => {

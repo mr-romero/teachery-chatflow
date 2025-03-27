@@ -3,7 +3,12 @@ import { Slide } from '@/types';
 import { Button } from './button';
 import { ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable as OriginalDroppable, Draggable } from 'react-beautiful-dnd';
+
+// Create a wrapper for the Droppable component to suppress the warning
+const Droppable = (props: any) => (
+  <OriginalDroppable {...props} />
+);
 
 interface SlideCarouselProps {
   slides: Slide[];
